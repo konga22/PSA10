@@ -6,6 +6,9 @@ const HANDLE_SIZE = 42;
 const HANDLE_INSET = 24;
 const MAGNIFIER_SIZE = 132;
 const MAGNIFIER_ZOOM = 2.3;
+const PERSPECTIVE_GRID_COLUMNS = 14;
+const PERSPECTIVE_GRID_ROWS = 20;
+const PERSPECTIVE_STRENGTH = 0.32;
 const PHOTO_TRANSFORM_LIMITS = {
   rotation: 15,
   tiltX: 30,
@@ -600,46 +603,140 @@ export class CanvasEditor {
   }
 
   drawTransformedImage() {
-    const matrix = this.getImageTransformMatrix();
+    const transform = this.getPhotoTransform();
+
+    if (!hasPhotoTransform(transform)) {
+      const matrix = this.getBaseImageMatrix();
+
+      this.context.save();
+      this.context.transform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
+      this.context.drawImage(this.image, 0, 0);
+      this.context.restore();
+      return;
+    }
+
+    this.drawPerspectiveImage(transform, this.getPhotoFitScale(transform));
+  }
+
+  drawPerspectiveImage(transform, fitScale) {
+    const columns = PERSPECTIVE_GRID_COLUMNS;
+    const rows = PERSPECTIVE_GRID_ROWS;
+    const cellWidth = this.image.naturalWidth / columns;
+    const cellHeight = this.image.naturalHeight / rows;
+    const points = [];
+
+    for (let row = 0; row <= rows; row += 1) {
+      points[row] = [];
+      for (let column = 0; column <= columns; column += 1) {
+        points[row][column] = this.getCorrectedPhotoPoint({
+          x: column * cellWidth,
+          y: row * cellHeight,
+        }, transform, fitScale);
+      }
+    }
+
+    for (let row = 0; row < rows; row += 1) {
+      for (let column = 0; column < columns; column += 1) {
+        const sourceLeft = column * cellWidth;
+        const sourceTop = row * cellHeight;
+        const sourceRight = sourceLeft + cellWidth;
+        const sourceBottom = sourceTop + cellHeight;
+        const topLeft = points[row][column];
+        const topRight = points[row][column + 1];
+        const bottomLeft = points[row + 1][column];
+        const bottomRight = points[row + 1][column + 1];
+
+        this.drawImageTriangle(
+          [
+            { x: sourceLeft, y: sourceTop },
+            { x: sourceRight, y: sourceTop },
+            { x: sourceLeft, y: sourceBottom },
+          ],
+          [topLeft, topRight, bottomLeft],
+        );
+        this.drawImageTriangle(
+          [
+            { x: sourceRight, y: sourceTop },
+            { x: sourceRight, y: sourceBottom },
+            { x: sourceLeft, y: sourceBottom },
+          ],
+          [topRight, bottomRight, bottomLeft],
+        );
+      }
+    }
+  }
+
+  drawImageTriangle(source, destination) {
+    const matrix = getTriangleTransform(source, destination);
+
+    if (!matrix) {
+      return;
+    }
 
     this.context.save();
+    this.context.beginPath();
+    this.context.moveTo(destination[0].x, destination[0].y);
+    this.context.lineTo(destination[1].x, destination[1].y);
+    this.context.lineTo(destination[2].x, destination[2].y);
+    this.context.closePath();
+    this.context.clip();
     this.context.transform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
     this.context.drawImage(this.image, 0, 0);
     this.context.restore();
   }
 
-  getImageTransformMatrix() {
+  getCorrectedPhotoPoint(point, transform, fitScale) {
     const imageRect = this.getImageRect();
     const center = {
       x: imageRect.x + imageRect.width / 2,
       y: imageRect.y + imageRect.height / 2,
     };
-    const transform = this.getPhotoTransform();
-    const baseMatrix = this.getBaseImageMatrix();
-    const rawMatrix = multiplyMatrices(
-      this.getPhotoAdjustmentMatrix(center, transform),
-      baseMatrix,
+    const basePoint = transformPoint(this.getBaseImageMatrix(), point);
+    const halfWidth = Math.max(imageRect.width / 2, 1);
+    const halfHeight = Math.max(imageRect.height / 2, 1);
+    const normalizedX = (basePoint.x - center.x) / halfWidth;
+    const normalizedY = (basePoint.y - center.y) / halfHeight;
+    const verticalTilt = transform.tiltY / PHOTO_TRANSFORM_LIMITS.tiltY;
+    const horizontalTilt = transform.tiltX / PHOTO_TRANSFORM_LIMITS.tiltX;
+    const perspective = clamp(
+      1
+        + verticalTilt * normalizedY * PERSPECTIVE_STRENGTH
+        + horizontalTilt * normalizedX * PERSPECTIVE_STRENGTH,
+      0.62,
+      1.62,
+    );
+    const projectedX = (basePoint.x - center.x) / perspective;
+    const projectedY = (basePoint.y - center.y) / perspective;
+    const rotationRadians = degreesToRadians(transform.rotation);
+    const cosine = Math.cos(rotationRadians);
+    const sine = Math.sin(rotationRadians);
+    const rotatedX = projectedX * cosine - projectedY * sine;
+    const rotatedY = projectedX * sine + projectedY * cosine;
+
+    return {
+      x: center.x + rotatedX * fitScale,
+      y: center.y + rotatedY * fitScale,
+    };
+  }
+
+  getPhotoFitScale(transform) {
+    const corners = [
+      { x: 0, y: 0 },
+      { x: this.image.naturalWidth, y: 0 },
+      { x: this.image.naturalWidth, y: this.image.naturalHeight },
+      { x: 0, y: this.image.naturalHeight },
+    ];
+    const bounds = getPointBounds(
+      corners.map((point) => this.getCorrectedPhotoPoint(point, transform, 1)),
     );
 
-    if (!hasPhotoTransform(transform)) {
-      return rawMatrix;
-    }
-
-    const bounds = getMatrixBounds(rawMatrix, this.image.naturalWidth, this.image.naturalHeight);
     const size = this.getCanvasSize();
     const padding = 10;
-    const fitScale = Math.min(
+
+    return Math.min(
       1,
       Math.max(0.1, (size.width - padding * 2) / Math.max(bounds.width, 1)),
       Math.max(0.1, (size.height - padding * 2) / Math.max(bounds.height, 1)),
-    );
-
-    return multiplyMatrices(
-      multiplyMatrices(
-        multiplyMatrices(createTranslationMatrix(center.x, center.y), createScaleMatrix(fitScale, fitScale)),
-        createTranslationMatrix(-center.x, -center.y),
-      ),
-      rawMatrix,
     );
   }
 
@@ -649,23 +746,6 @@ export class CanvasEditor {
     return multiplyMatrices(
       createTranslationMatrix(imageRect.x, imageRect.y),
       createScaleMatrix(imageRect.scale, imageRect.scale),
-    );
-  }
-
-  getPhotoAdjustmentMatrix(center, transform) {
-    const rotationRadians = degreesToRadians(transform.rotation);
-    const shearX = Math.tan(degreesToRadians(transform.tiltX)) * 0.45;
-    const shearY = Math.tan(degreesToRadians(transform.tiltY)) * 0.45;
-
-    return multiplyMatrices(
-      multiplyMatrices(
-        multiplyMatrices(
-          multiplyMatrices(createTranslationMatrix(center.x, center.y), createRotationMatrix(rotationRadians)),
-          createShearMatrix(shearX, shearY),
-        ),
-        createTranslationMatrix(-center.x, -center.y),
-      ),
-      createIdentityMatrix(),
     );
   }
 
@@ -766,28 +846,9 @@ function getPointBounds(points) {
     right: Math.max(...xs),
     top: Math.min(...ys),
     bottom: Math.max(...ys),
+    width: Math.max(...xs) - Math.min(...xs),
     height: Math.max(...ys) - Math.min(...ys),
   };
-}
-
-function getMatrixBounds(matrix, width, height) {
-  const points = [
-    transformPoint(matrix, { x: 0, y: 0 }),
-    transformPoint(matrix, { x: width, y: 0 }),
-    transformPoint(matrix, { x: width, y: height }),
-    transformPoint(matrix, { x: 0, y: height }),
-  ];
-
-  const bounds = getPointBounds(points);
-
-  return {
-    ...bounds,
-    width: bounds.right - bounds.left,
-  };
-}
-
-function createIdentityMatrix() {
-  return { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
 }
 
 function createTranslationMatrix(x, y) {
@@ -798,17 +859,6 @@ function createScaleMatrix(x, y) {
   return { a: x, b: 0, c: 0, d: y, e: 0, f: 0 };
 }
 
-function createRotationMatrix(radians) {
-  const cosine = Math.cos(radians);
-  const sine = Math.sin(radians);
-
-  return { a: cosine, b: sine, c: -sine, d: cosine, e: 0, f: 0 };
-}
-
-function createShearMatrix(x, y) {
-  return { a: 1, b: y, c: x, d: 1, e: 0, f: 0 };
-}
-
 function multiplyMatrices(left, right) {
   return {
     a: left.a * right.a + left.c * right.b,
@@ -817,6 +867,36 @@ function multiplyMatrices(left, right) {
     d: left.b * right.c + left.d * right.d,
     e: left.a * right.e + left.c * right.f + left.e,
     f: left.b * right.e + left.d * right.f + left.f,
+  };
+}
+
+function getTriangleTransform(source, destination) {
+  const sourceVectorX1 = source[1].x - source[0].x;
+  const sourceVectorY1 = source[1].y - source[0].y;
+  const sourceVectorX2 = source[2].x - source[0].x;
+  const sourceVectorY2 = source[2].y - source[0].y;
+  const destinationVectorX1 = destination[1].x - destination[0].x;
+  const destinationVectorY1 = destination[1].y - destination[0].y;
+  const destinationVectorX2 = destination[2].x - destination[0].x;
+  const destinationVectorY2 = destination[2].y - destination[0].y;
+  const determinant = sourceVectorX1 * sourceVectorY2 - sourceVectorY1 * sourceVectorX2;
+
+  if (Math.abs(determinant) < 0.000001) {
+    return null;
+  }
+
+  const a = (destinationVectorX1 * sourceVectorY2 - destinationVectorX2 * sourceVectorY1) / determinant;
+  const b = (destinationVectorY1 * sourceVectorY2 - destinationVectorY2 * sourceVectorY1) / determinant;
+  const c = (-destinationVectorX1 * sourceVectorX2 + destinationVectorX2 * sourceVectorX1) / determinant;
+  const d = (-destinationVectorY1 * sourceVectorX2 + destinationVectorY2 * sourceVectorX1) / determinant;
+
+  return {
+    a,
+    b,
+    c,
+    d,
+    e: destination[0].x - a * source[0].x - c * source[0].y,
+    f: destination[0].y - b * source[0].x - d * source[0].y,
   };
 }
 
