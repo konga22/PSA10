@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f8faf7" />
+    <title>Grade Preview</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="top-bar">
+        <div>
+          <p class="eyebrow">Pokemon TCG</p>
+          <h1>Grade Preview</h1>
+        </div>
+        <div class="top-actions">
+          <button class="icon-button theme-button" id="themeToggleButton" type="button" aria-pressed="false">
+            Dark
+          </button>
+          <button class="icon-button" id="resetButton" type="button" aria-label="검사 초기화">
+            Reset
+          </button>
+        </div>
+      </header>
+
+      <section class="score-strip" aria-label="등급사별 예상 후보">
+        <article class="score-pill" data-company="psa">
+          <span>PSA</span>
+          <strong id="scorePsa">-</strong>
+        </article>
+        <article class="score-pill" data-company="bgs">
+          <span>BGS</span>
+          <strong id="scoreBgs">-</strong>
+        </article>
+        <article class="score-pill" data-company="cgc">
+          <span>CGC</span>
+          <strong id="scoreCgc">-</strong>
+        </article>
+        <article class="score-pill" data-company="brg">
+          <span>BRG</span>
+          <strong id="scoreBrg">-</strong>
+        </article>
+      </section>
+
+      <section class="tool-panel" aria-label="카드 사진 조절">
+        <div class="segmented" role="tablist" aria-label="사진 면 선택">
+          <button class="segment is-active" id="frontTab" type="button">앞면</button>
+          <button class="segment" id="backTab" type="button">뒷면</button>
+        </div>
+
+        <div class="canvas-wrap" id="dropZone">
+          <canvas id="cardCanvas" aria-label="카드 이미지 조절 캔버스"></canvas>
+          <button class="empty-state" id="emptyState" type="button" aria-label="사진 선택">
+            <strong>사진 필요</strong>
+            <span>클릭하거나 이미지를 끌어다 놓으세요.</span>
+          </button>
+        </div>
+
+        <div class="control-row">
+          <label class="file-button" for="imageInput">사진</label>
+          <input id="imageInput" type="file" accept="image/*" capture="environment" />
+          <div class="segmented compact" role="tablist" aria-label="기준선 선택">
+            <button class="segment is-active" id="outerModeButton" type="button">바깥선</button>
+            <button class="segment" id="innerModeButton" type="button">안쪽선</button>
+          </div>
+        </div>
+
+        <button class="precision-button" id="precisionZoomButton" type="button" aria-pressed="false">
+          자동확대
+        </button>
+
+        <section class="transform-panel" aria-label="사진 기울기 보정">
+          <div class="transform-header">
+            <h2>사진 보정</h2>
+            <button class="mini-button" id="transformResetButton" type="button">리셋</button>
+          </div>
+          <label class="adjust-row" for="rotationInput">
+            <span>회전</span>
+            <input id="rotationInput" type="range" min="-15" max="15" step="0.1" value="0" />
+            <output id="rotationOutput" for="rotationInput">0.0°</output>
+          </label>
+          <label class="adjust-row" for="verticalTiltInput">
+            <span>수직</span>
+            <input id="verticalTiltInput" type="range" min="-30" max="30" step="0.5" value="0" />
+            <output id="verticalTiltOutput" for="verticalTiltInput">0.0°</output>
+          </label>
+          <label class="adjust-row" for="horizontalTiltInput">
+            <span>좌우</span>
+            <input id="horizontalTiltInput" type="range" min="-30" max="30" step="0.5" value="0" />
+            <output id="horizontalTiltOutput" for="horizontalTiltInput">0.0°</output>
+          </label>
+        </section>
+
+      </section>
+
+      <section class="metrics-grid" aria-label="센터링 측정값">
+        <article>
+          <span>L/R</span>
+          <strong id="lrValue">-</strong>
+        </article>
+        <article>
+          <span>T/B</span>
+          <strong id="tbValue">-</strong>
+        </article>
+        <article>
+          <span>신뢰도</span>
+          <strong id="confidenceValue">-</strong>
+        </article>
+      </section>
+
+      <section class="auto-panel" aria-label="사진 자동 분석">
+        <article>
+          <span>사진</span>
+          <strong id="photoQuality">-</strong>
+        </article>
+        <article>
+          <span>코너</span>
+          <strong id="photoCorners">-</strong>
+        </article>
+        <article>
+          <span>엣지</span>
+          <strong id="photoEdges">-</strong>
+        </article>
+        <article>
+          <span>표면</span>
+          <strong id="photoSurface">-</strong>
+        </article>
+      </section>
+
+      <section class="manual-panel" aria-label="수동 상태 체크">
+        <div class="manual-header">
+          <h2>상태 체크</h2>
+          <p id="manualStatus">미확인 항목이 결과 범위를 넓힙니다.</p>
+        </div>
+        <div class="manual-guide" id="manualGuide"></div>
+        <div class="condition-rubric" id="conditionRubric"></div>
+
+        <div class="check-group" data-field="corners">
+          <div class="check-title">
+            <span>코너</span>
+            <small>4 corners</small>
+          </div>
+          <div class="choice-row">
+            <button type="button" data-value="clean">깨끗함</button>
+            <button type="button" data-value="minor">미세</button>
+            <button type="button" data-value="visible">보임</button>
+            <button type="button" data-value="severe">심함</button>
+          </div>
+        </div>
+
+        <div class="check-group" data-field="edges">
+          <div class="check-title">
+            <span>엣지</span>
+            <small>4 edges</small>
+          </div>
+          <div class="choice-row">
+            <button type="button" data-value="clean">깨끗함</button>
+            <button type="button" data-value="minor">미세</button>
+            <button type="button" data-value="visible">보임</button>
+            <button type="button" data-value="severe">심함</button>
+          </div>
+        </div>
+
+        <div class="check-group" data-field="surface">
+          <div class="check-title">
+            <span>표면</span>
+            <small>surface</small>
+          </div>
+          <div class="choice-row">
+            <button type="button" data-value="clean">깨끗함</button>
+            <button type="button" data-value="minor">미세</button>
+            <button type="button" data-value="visible">보임</button>
+            <button type="button" data-value="severe">심함</button>
+          </div>
+        </div>
+
+        <div class="check-group" data-field="alteration">
+          <div class="check-title">
+            <span>변조 의심</span>
+            <small>alteration</small>
+          </div>
+          <div class="choice-row">
+            <button type="button" data-value="none">없음</button>
+            <button type="button" data-value="suspect">의심</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="details-panel" aria-label="예상 근거">
+        <h2>예상 근거</h2>
+        <div id="predictionDetails" class="prediction-list"></div>
+      </section>
+    </main>
+
+    <script type="module" src="./src/ui/app.js"></script>
+  </body>
+</html>

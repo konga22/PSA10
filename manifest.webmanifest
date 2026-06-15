@@ -1,0 +1,9 @@
+{
+  "name": "Grade Preview",
+  "short_name": "Grade Preview",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f8faf7",
+  "theme_color": "#f8faf7",
+  "icons": []
+}
