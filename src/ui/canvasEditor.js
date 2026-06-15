@@ -9,6 +9,10 @@ const MAGNIFIER_ZOOM = 2.3;
 const PERSPECTIVE_GRID_COLUMNS = 14;
 const PERSPECTIVE_GRID_ROWS = 20;
 const PERSPECTIVE_STRENGTH = 0.32;
+const VIEW_ZOOM_LIMITS = {
+  min: 1,
+  max: 2.5,
+};
 const PHOTO_TRANSFORM_LIMITS = {
   rotation: 15,
   tiltX: 30,
@@ -21,6 +25,14 @@ export function createDefaultPhotoTransform() {
     tiltX: 0,
     tiltY: 0,
   };
+}
+
+export function createDefaultViewZoom() {
+  return 1;
+}
+
+export function normalizeViewZoom(zoom) {
+  return clamp(Number(zoom) || createDefaultViewZoom(), VIEW_ZOOM_LIMITS.min, VIEW_ZOOM_LIMITS.max);
 }
 
 export function normalizePhotoTransform(transform = {}) {
@@ -43,6 +55,9 @@ export class CanvasEditor {
     this.autoMagnifierEnabled = false;
     this.gridVisible = true;
     this.guidesVisible = true;
+    this.handlesVisible = true;
+    this.ignoreNextMouseDown = false;
+    this.ignoreNextMouseDownTimer = null;
     this.dragState = null;
     this.lensPoint = null;
     this.magnifierBaseCanvas = document.createElement("canvas");
@@ -59,7 +74,10 @@ export class CanvasEditor {
     this.sideData = sideData;
     if (this.sideData) {
       this.sideData.photoTransform = normalizePhotoTransform(this.sideData.photoTransform);
+      this.sideData.viewZoom = normalizeViewZoom(this.sideData.viewZoom);
+      this.zoom = this.sideData.viewZoom;
     }
+    this.handlesVisible = true;
     this.loadImage(sideData?.imageDataUrl);
   }
 
@@ -72,6 +90,9 @@ export class CanvasEditor {
     this.sideData.outerQuad = outerQuad;
     this.sideData.innerQuad = innerQuad;
     this.sideData.photoTransform = createDefaultPhotoTransform();
+    this.sideData.viewZoom = createDefaultViewZoom();
+    this.zoom = this.sideData.viewZoom;
+    this.handlesVisible = true;
     this.image = image;
     this.draw();
     this.onChange?.(this.sideData);
@@ -83,7 +104,10 @@ export class CanvasEditor {
   }
 
   setZoom(zoom) {
-    this.zoom = Number(zoom);
+    this.zoom = normalizeViewZoom(zoom);
+    if (this.sideData) {
+      this.sideData.viewZoom = this.zoom;
+    }
     this.draw();
   }
 
@@ -103,6 +127,15 @@ export class CanvasEditor {
   setGuidesVisible(isVisible) {
     this.guidesVisible = Boolean(isVisible);
     if (!this.guidesVisible) {
+      this.dragState = null;
+      this.lensPoint = null;
+    }
+    this.draw();
+  }
+
+  setHandlesVisible(isVisible) {
+    this.handlesVisible = Boolean(isVisible);
+    if (!this.handlesVisible) {
       this.dragState = null;
       this.lensPoint = null;
     }
@@ -179,6 +212,9 @@ export class CanvasEditor {
 
     const hit = this.findHandle(event);
     if (!hit) {
+      if (this.toggleHandlesFromCanvasPoint(event)) {
+        this.suppressNextMouseDown();
+      }
       return;
     }
 
@@ -214,12 +250,19 @@ export class CanvasEditor {
   }
 
   onMouseDown(event) {
+    if (this.ignoreNextMouseDown) {
+      this.ignoreNextMouseDown = false;
+      window.clearTimeout(this.ignoreNextMouseDownTimer);
+      return;
+    }
+
     if (this.dragState || event.pointerType || !this.image || !this.sideData) {
       return;
     }
 
     const hit = this.findHandle(event);
     if (!hit) {
+      this.toggleHandlesFromCanvasPoint(event);
       return;
     }
 
@@ -231,6 +274,29 @@ export class CanvasEditor {
     };
     this.lensPoint = this.getPointerPoint(event);
     this.draw();
+  }
+
+  suppressNextMouseDown() {
+    this.ignoreNextMouseDown = true;
+    window.clearTimeout(this.ignoreNextMouseDownTimer);
+    this.ignoreNextMouseDownTimer = window.setTimeout(() => {
+      this.ignoreNextMouseDown = false;
+    }, 400);
+  }
+
+  toggleHandlesFromCanvasPoint(event) {
+    if (!this.guidesVisible) {
+      return false;
+    }
+
+    const point = this.getPointerPoint(event);
+    if (!this.isPointInsideImageRect(point)) {
+      return false;
+    }
+
+    event.preventDefault();
+    this.setHandlesVisible(!this.handlesVisible);
+    return true;
   }
 
   onMouseMove(event) {
@@ -310,7 +376,7 @@ export class CanvasEditor {
     this.context.stroke();
     this.context.restore();
 
-    if (active) {
+    if (active && this.handlesVisible) {
       for (const handle of this.getCanvasSideHandles(quad)) {
         this.drawSideHandle(handle.point, handle.arrow, color);
       }
@@ -439,7 +505,7 @@ export class CanvasEditor {
   }
 
   findHandle(event) {
-    if (!this.guidesVisible) {
+    if (!this.guidesVisible || !this.handlesVisible) {
       return null;
     }
 
@@ -590,6 +656,15 @@ export class CanvasEditor {
       x: event.clientX - rect.left,
       y: event.clientY - rect.top,
     };
+  }
+
+  isPointInsideImageRect(point) {
+    const imageRect = this.getImageRect();
+
+    return point.x >= imageRect.x
+      && point.x <= imageRect.x + imageRect.width
+      && point.y >= imageRect.y
+      && point.y <= imageRect.y + imageRect.height;
   }
 
   imageToCanvas(point) {

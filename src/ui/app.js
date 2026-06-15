@@ -7,7 +7,7 @@ import {
   DEFAULT_MANUAL_CHECKS,
   MANUAL_INSPECTION_GUIDE,
 } from "../grading/standards.js";
-import { CanvasEditor, createDefaultPhotoTransform } from "./canvasEditor.js";
+import { CanvasEditor, createDefaultPhotoTransform, createDefaultViewZoom, normalizeViewZoom } from "./canvasEditor.js";
 
 const state = {
   currentSide: "front",
@@ -49,6 +49,8 @@ const elements = {
   transformResetButton: document.querySelector("#transformResetButton"),
   gridToggleButton: document.querySelector("#gridToggleButton"),
   guideToggleButton: document.querySelector("#guideToggleButton"),
+  viewZoomInput: document.querySelector("#viewZoomInput"),
+  viewZoomOutput: document.querySelector("#viewZoomOutput"),
   rotationInput: document.querySelector("#rotationInput"),
   rotationOutput: document.querySelector("#rotationOutput"),
   verticalTiltInput: document.querySelector("#verticalTiltInput"),
@@ -80,6 +82,10 @@ const scoreElements = {
 };
 
 const transformControls = {
+  viewZoom: {
+    input: elements.viewZoomInput,
+    output: elements.viewZoomOutput,
+  },
   rotation: {
     input: elements.rotationInput,
     output: elements.rotationOutput,
@@ -128,7 +134,8 @@ function bindEvents() {
   elements.transformResetButton.addEventListener("click", () => resetPhotoTransform());
   elements.gridToggleButton.addEventListener("click", () => toggleGridVisibility());
   elements.guideToggleButton.addEventListener("click", () => toggleGuideVisibility());
-  Object.entries(transformControls).forEach(([field, control]) => {
+  transformControls.viewZoom.input.addEventListener("input", () => updateViewZoom(transformControls.viewZoom.input.value));
+  Object.entries(transformControls).filter(([field]) => field !== "viewZoom").forEach(([field, control]) => {
     control.input.addEventListener("input", () => updatePhotoTransform(field, control.input.value));
   });
   document.querySelectorAll(".check-group").forEach((group) => {
@@ -282,9 +289,17 @@ function updatePhotoTransform(field, value) {
   renderPhotoTransformControls();
 }
 
+function updateViewZoom(value) {
+  state.sides[state.currentSide].viewZoom = normalizeViewZoom(value);
+  editor.setZoom(state.sides[state.currentSide].viewZoom);
+  renderPhotoTransformControls();
+}
+
 function resetPhotoTransform() {
   state.sides[state.currentSide].photoTransform = createDefaultPhotoTransform();
+  state.sides[state.currentSide].viewZoom = createDefaultViewZoom();
   editor.setPhotoTransform(state.sides[state.currentSide].photoTransform);
+  editor.setZoom(state.sides[state.currentSide].viewZoom);
   renderPhotoTransformControls();
 }
 
@@ -425,7 +440,10 @@ function renderPhotoAnalysis() {
 
 function renderPhotoTransformControls() {
   const transform = getCurrentPhotoTransform();
+  const viewZoom = getCurrentViewZoom();
 
+  transformControls.viewZoom.input.value = String(viewZoom);
+  transformControls.viewZoom.output.textContent = formatZoom(viewZoom);
   transformControls.rotation.input.value = String(transform.rotation);
   transformControls.rotation.output.textContent = formatDegrees(transform.rotation);
   transformControls.tiltY.input.value = String(transform.tiltY);
@@ -613,6 +631,7 @@ function createSideState() {
     outerQuad: null,
     innerQuad: null,
     photoTransform: createDefaultPhotoTransform(),
+    viewZoom: createDefaultViewZoom(),
   };
 }
 
@@ -624,8 +643,17 @@ function getCurrentPhotoTransform() {
   return { ...state.sides[state.currentSide].photoTransform };
 }
 
+function getCurrentViewZoom() {
+  state.sides[state.currentSide].viewZoom = normalizeViewZoom(state.sides[state.currentSide].viewZoom);
+  return state.sides[state.currentSide].viewZoom;
+}
+
 function formatDegrees(value) {
   return `${Number(value).toFixed(1)}°`;
+}
+
+function formatZoom(value) {
+  return `${Number(value).toFixed(2)}x`;
 }
 
 function readFileAsDataUrl(file) {

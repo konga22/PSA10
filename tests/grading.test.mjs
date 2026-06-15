@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import { calculateCentering } from "../src/grading/measurement.js";
 import { predictAll } from "../src/grading/prediction.js";
 import { DEFAULT_MANUAL_CHECKS } from "../src/grading/standards.js";
-import { createDefaultPhotoTransform, normalizePhotoTransform } from "../src/ui/canvasEditor.js";
+import {
+  createDefaultPhotoTransform,
+  createDefaultViewZoom,
+  normalizePhotoTransform,
+  normalizeViewZoom,
+} from "../src/ui/canvasEditor.js";
 import { getQuadSideValue, getSideHandlePositions, moveQuadSide } from "../src/ui/quadControls.js";
 
 const outer = [
@@ -250,4 +255,11 @@ test("normalizes photo correction values inside safe slider limits", () => {
     tiltX: -30,
     tiltY: 30,
   });
+});
+
+test("normalizes whole-photo zoom inside view limits", () => {
+  assert.equal(createDefaultViewZoom(), 1);
+  assert.equal(normalizeViewZoom(0.2), 1);
+  assert.equal(normalizeViewZoom(3.7), 2.5);
+  assert.equal(normalizeViewZoom(1.75), 1.75);
 });
