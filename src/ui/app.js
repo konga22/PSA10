@@ -26,6 +26,8 @@ const state = {
     back: createEmptyAnalysis(),
   },
   precisionZoomEnabled: false,
+  gridVisible: true,
+  guidesVisible: true,
   predictions: {},
 };
 
@@ -45,6 +47,8 @@ const elements = {
   innerModeButton: document.querySelector("#innerModeButton"),
   precisionZoomButton: document.querySelector("#precisionZoomButton"),
   transformResetButton: document.querySelector("#transformResetButton"),
+  gridToggleButton: document.querySelector("#gridToggleButton"),
+  guideToggleButton: document.querySelector("#guideToggleButton"),
   rotationInput: document.querySelector("#rotationInput"),
   rotationOutput: document.querySelector("#rotationOutput"),
   verticalTiltInput: document.querySelector("#verticalTiltInput"),
@@ -102,6 +106,7 @@ bindEvents();
 renderManualGuides();
 renderManualChecks();
 editor.setSideData(state.sides.front);
+renderOverlayToggles();
 renderPhotoTransformControls();
 updatePredictions();
 loadDemoIfRequested();
@@ -121,6 +126,8 @@ function bindEvents() {
   elements.innerModeButton.addEventListener("click", () => switchLayer("inner"));
   elements.precisionZoomButton.addEventListener("click", () => togglePrecisionZoom());
   elements.transformResetButton.addEventListener("click", () => resetPhotoTransform());
+  elements.gridToggleButton.addEventListener("click", () => toggleGridVisibility());
+  elements.guideToggleButton.addEventListener("click", () => toggleGuideVisibility());
   Object.entries(transformControls).forEach(([field, control]) => {
     control.input.addEventListener("input", () => updatePhotoTransform(field, control.input.value));
   });
@@ -254,6 +261,18 @@ function togglePrecisionZoom() {
   state.precisionZoomEnabled = !state.precisionZoomEnabled;
   editor.setAutoMagnifierEnabled(state.precisionZoomEnabled);
   updateActiveButton(elements.precisionZoomButton, state.precisionZoomEnabled);
+}
+
+function toggleGridVisibility() {
+  state.gridVisible = !state.gridVisible;
+  editor.setGridVisible(state.gridVisible);
+  renderOverlayToggles();
+}
+
+function toggleGuideVisibility() {
+  state.guidesVisible = !state.guidesVisible;
+  editor.setGuidesVisible(state.guidesVisible);
+  renderOverlayToggles();
 }
 
 function updatePhotoTransform(field, value) {
@@ -415,6 +434,11 @@ function renderPhotoTransformControls() {
   transformControls.tiltX.output.textContent = formatDegrees(transform.tiltX);
 }
 
+function renderOverlayToggles() {
+  updateActiveButton(elements.gridToggleButton, state.gridVisible);
+  updateActiveButton(elements.guideToggleButton, state.guidesVisible);
+}
+
 function resetInspection() {
   state.currentSide = "front";
   state.activeLayer = "outer";
@@ -427,8 +451,13 @@ function resetInspection() {
   state.photoAnalysis.back = createEmptyAnalysis();
 
   state.precisionZoomEnabled = false;
+  state.gridVisible = true;
+  state.guidesVisible = true;
   editor.setAutoMagnifierEnabled(false);
+  editor.setGridVisible(true);
+  editor.setGuidesVisible(true);
   updateActiveButton(elements.precisionZoomButton, false);
+  renderOverlayToggles();
   switchLayer("outer");
   updateActiveButton(elements.frontTab, true);
   updateActiveButton(elements.backTab, false);

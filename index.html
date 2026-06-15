@@ -76,6 +76,14 @@
             <h2>사진 보정</h2>
             <button class="mini-button" id="transformResetButton" type="button">리셋</button>
           </div>
+          <div class="transform-actions" aria-label="보정 기준 표시">
+            <button class="mini-button is-active" id="gridToggleButton" type="button" aria-pressed="true">
+              그리드
+            </button>
+            <button class="mini-button is-active" id="guideToggleButton" type="button" aria-pressed="true">
+              센터링선
+            </button>
+          </div>
           <label class="adjust-row" for="rotationInput">
             <span>회전</span>
             <input id="rotationInput" type="range" min="-15" max="15" step="0.1" value="0" />

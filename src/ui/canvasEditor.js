@@ -38,6 +38,8 @@ export class CanvasEditor {
     this.activeLayer = "outer";
     this.zoom = 1;
     this.autoMagnifierEnabled = false;
+    this.gridVisible = true;
+    this.guidesVisible = true;
     this.dragState = null;
     this.lensPoint = null;
     this.magnifierBaseCanvas = document.createElement("canvas");
@@ -90,6 +92,20 @@ export class CanvasEditor {
     this.draw();
   }
 
+  setGridVisible(isVisible) {
+    this.gridVisible = Boolean(isVisible);
+    this.draw();
+  }
+
+  setGuidesVisible(isVisible) {
+    this.guidesVisible = Boolean(isVisible);
+    if (!this.guidesVisible) {
+      this.dragState = null;
+      this.lensPoint = null;
+    }
+    this.draw();
+  }
+
   setPhotoTransform(transform) {
     if (!this.sideData) {
       return;
@@ -120,19 +136,25 @@ export class CanvasEditor {
     this.drawTransformedImage();
     this.captureMagnifierBase();
 
-    this.drawBorderHatching(this.sideData.outerQuad, this.sideData.innerQuad);
-    this.drawQuad(this.sideData.outerQuad, {
-      color: "#1d73d8",
-      fill: "rgba(29, 115, 216, 0.08)",
-      active: this.activeLayer === "outer",
-    });
-    this.drawQuad(this.sideData.innerQuad, {
-      color: "#d85a36",
-      fill: "rgba(216, 90, 54, 0.08)",
-      active: this.activeLayer === "inner",
-    });
+    if (this.gridVisible) {
+      this.drawReferenceGrid();
+    }
 
-    if (this.autoMagnifierEnabled && this.dragState && this.lensPoint) {
+    if (this.guidesVisible) {
+      this.drawBorderHatching(this.sideData.outerQuad, this.sideData.innerQuad);
+      this.drawQuad(this.sideData.outerQuad, {
+        color: "#1d73d8",
+        fill: "rgba(29, 115, 216, 0.08)",
+        active: this.activeLayer === "outer",
+      });
+      this.drawQuad(this.sideData.innerQuad, {
+        color: "#d85a36",
+        fill: "rgba(216, 90, 54, 0.08)",
+        active: this.activeLayer === "inner",
+      });
+    }
+
+    if (this.guidesVisible && this.autoMagnifierEnabled && this.dragState && this.lensPoint) {
       this.drawMagnifier(this.lensPoint);
     }
   }
@@ -323,6 +345,52 @@ export class CanvasEditor {
     this.context.restore();
   }
 
+  drawReferenceGrid() {
+    const imageRect = this.getImageRect();
+    const verticalLines = [0.25, 0.5, 0.75];
+    const horizontalLines = [0.25, 0.5, 0.75];
+
+    this.context.save();
+    this.context.beginPath();
+    this.context.rect(imageRect.x, imageRect.y, imageRect.width, imageRect.height);
+    this.context.clip();
+    this.context.lineCap = "square";
+
+    this.context.beginPath();
+    verticalLines.forEach((ratio) => {
+      const x = imageRect.x + imageRect.width * ratio;
+      this.context.moveTo(x, imageRect.y);
+      this.context.lineTo(x, imageRect.y + imageRect.height);
+    });
+    horizontalLines.forEach((ratio) => {
+      const y = imageRect.y + imageRect.height * ratio;
+      this.context.moveTo(imageRect.x, y);
+      this.context.lineTo(imageRect.x + imageRect.width, y);
+    });
+    this.context.lineWidth = 3;
+    this.context.strokeStyle = "rgba(255, 255, 255, 0.5)";
+    this.context.stroke();
+    this.context.lineWidth = 1;
+    this.context.strokeStyle = "rgba(29, 115, 216, 0.38)";
+    this.context.stroke();
+
+    this.context.beginPath();
+    this.context.moveTo(imageRect.x + imageRect.width / 2, imageRect.y);
+    this.context.lineTo(imageRect.x + imageRect.width / 2, imageRect.y + imageRect.height);
+    this.context.moveTo(imageRect.x, imageRect.y + imageRect.height / 2);
+    this.context.lineTo(imageRect.x + imageRect.width, imageRect.y + imageRect.height / 2);
+    this.context.lineWidth = 2;
+    this.context.strokeStyle = "rgba(216, 90, 54, 0.62)";
+    this.context.stroke();
+
+    this.context.beginPath();
+    this.context.rect(imageRect.x, imageRect.y, imageRect.width, imageRect.height);
+    this.context.lineWidth = 1.5;
+    this.context.strokeStyle = "rgba(29, 115, 216, 0.44)";
+    this.context.stroke();
+    this.context.restore();
+  }
+
   addQuadPath(points) {
     this.context.moveTo(points[0].x, points[0].y);
     for (let index = 1; index < points.length; index += 1) {
@@ -368,6 +436,10 @@ export class CanvasEditor {
   }
 
   findHandle(event) {
+    if (!this.guidesVisible) {
+      return null;
+    }
+
     const pointer = this.getPointerPoint(event);
     const candidateLayers = [this.activeLayer];
 
@@ -518,11 +590,11 @@ export class CanvasEditor {
   }
 
   imageToCanvas(point) {
-    return transformPoint(this.getImageTransformMatrix(), point);
+    return transformPoint(this.getBaseImageMatrix(), point);
   }
 
   canvasToImage(point) {
-    const inverseMatrix = invertMatrix(this.getImageTransformMatrix());
+    const inverseMatrix = invertMatrix(this.getBaseImageMatrix());
 
     return inverseMatrix ? transformPoint(inverseMatrix, point) : point;
   }
@@ -543,10 +615,7 @@ export class CanvasEditor {
       y: imageRect.y + imageRect.height / 2,
     };
     const transform = this.getPhotoTransform();
-    const baseMatrix = multiplyMatrices(
-      createTranslationMatrix(imageRect.x, imageRect.y),
-      createScaleMatrix(imageRect.scale, imageRect.scale),
-    );
+    const baseMatrix = this.getBaseImageMatrix();
     const rawMatrix = multiplyMatrices(
       this.getPhotoAdjustmentMatrix(center, transform),
       baseMatrix,
@@ -571,6 +640,15 @@ export class CanvasEditor {
         createTranslationMatrix(-center.x, -center.y),
       ),
       rawMatrix,
+    );
+  }
+
+  getBaseImageMatrix() {
+    const imageRect = this.getImageRect();
+
+    return multiplyMatrices(
+      createTranslationMatrix(imageRect.x, imageRect.y),
+      createScaleMatrix(imageRect.scale, imageRect.scale),
     );
   }
 
