@@ -615,6 +615,26 @@ h2 {
   background: var(--panel);
 }
 
+.prediction-item--label-gold {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--panel), var(--panel)) padding-box,
+    linear-gradient(135deg, #946200, #ffd66d 24%, #fff5c8 42%, #b47b06 68%, #ffe89f) border-box;
+  box-shadow:
+    0 0 0 1px rgba(255, 214, 109, 0.2),
+    0 10px 24px rgba(148, 98, 0, 0.16);
+}
+
+.prediction-item--label-black {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--panel), var(--panel)) padding-box,
+    linear-gradient(135deg, #040605, #6f7773 26%, #f2f6f3 42%, #151b18 64%, #000000) border-box;
+  box-shadow:
+    0 0 0 1px rgba(242, 246, 243, 0.16),
+    0 12px 28px rgba(0, 0, 0, 0.28);
+}
+
 .prediction-head {
   display: flex;
   align-items: center;
@@ -630,6 +650,38 @@ h2 {
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
+}
+
+.label-recommendation {
+  display: grid;
+  gap: 2px;
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.label-recommendation strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.label-recommendation span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.prediction-item--label-gold .label-recommendation {
+  background:
+    linear-gradient(135deg, rgba(255, 214, 109, 0.24), rgba(255, 245, 200, 0.08)),
+    var(--panel-soft);
+}
+
+.prediction-item--label-black .label-recommendation {
+  background:
+    linear-gradient(135deg, rgba(242, 246, 243, 0.16), rgba(4, 6, 5, 0.12)),
+    var(--panel-soft);
 }
 
 .reason-list {

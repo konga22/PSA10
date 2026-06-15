@@ -488,6 +488,9 @@ function resetInspection() {
 function createPredictionItem(prediction) {
   const item = document.createElement("article");
   item.className = "prediction-item";
+  if (prediction.labelRecommendation) {
+    item.classList.add(`prediction-item--label-${prediction.labelRecommendation.tone}`);
+  }
 
   const head = document.createElement("div");
   head.className = "prediction-head";
@@ -500,6 +503,20 @@ function createPredictionItem(prediction) {
 
   head.append(title, grade);
   item.append(head);
+
+  if (prediction.labelRecommendation) {
+    const recommendation = document.createElement("div");
+    recommendation.className = "label-recommendation";
+
+    const recommendationTitle = document.createElement("strong");
+    recommendationTitle.textContent = prediction.labelRecommendation.title;
+
+    const recommendationDetail = document.createElement("span");
+    recommendationDetail.textContent = prediction.labelRecommendation.detail;
+
+    recommendation.append(recommendationTitle, recommendationDetail);
+    item.append(recommendation);
+  }
 
   if (prediction.subgrades) {
     const subgrade = document.createElement("p");

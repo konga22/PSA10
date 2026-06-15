@@ -69,9 +69,36 @@ test("predicts high candidates when centering and manual checks are clean", () =
   });
 
   assert.equal(predictions.psa.displayGrade, "10");
+  assert.equal(predictions.bgs.displayGrade, "10 BL");
+  assert.equal(predictions.bgs.labelRecommendation.title, "Black Label 후보");
+  assert.equal(predictions.bgs.labelRecommendation.tone, "black");
   assert.equal(predictions.bgs.subgrades.Corners, 10);
   assert.equal(predictions.cgc.displayGrade, "Pristine 10");
   assert.equal(predictions.brg.displayGrade, "10");
+});
+
+test("recommends BGS gold label when pristine centering misses black label threshold", () => {
+  const inner = [
+    { x: 117, y: 160 },
+    { x: 877, y: 160 },
+    { x: 877, y: 1240 },
+    { x: 117, y: 1240 },
+  ];
+  const measurement = calculateCentering(outer, inner);
+  const predictions = predictAll({
+    frontMeasurement: measurement,
+    backMeasurement: measurement,
+    manualChecks: {
+      corners: "clean",
+      edges: "clean",
+      surface: "clean",
+      alteration: "none",
+    },
+  });
+
+  assert.equal(predictions.bgs.displayGrade, "10");
+  assert.equal(predictions.bgs.labelRecommendation.title, "Gold Label 10 후보");
+  assert.equal(predictions.bgs.labelRecommendation.tone, "gold");
 });
 
 test("widens candidate range when back and manual checks are missing", () => {
@@ -139,6 +166,8 @@ test("keeps a single minor issue as a top-grade risk instead of a universal hard
   assert.equal(predictions.brg.displayGrade, "10");
   assert.equal(predictions.bgs.displayGrade, "9.5");
   assert.equal(predictions.bgs.subgrades.Corners, 9.5);
+  assert.equal(predictions.bgs.labelRecommendation.title, "Gold Label 9.5 후보");
+  assert.equal(predictions.bgs.labelRecommendation.tone, "gold");
 });
 
 test("caps top candidates when multiple minor issues are selected", () => {

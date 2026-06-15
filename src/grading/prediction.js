@@ -56,6 +56,13 @@ function predictCompany({ company, frontMeasurement, backMeasurement, manualChec
   const lowerGrade = Math.max(1, roundGrade(upperGrade - missingPenalty));
   const confidenceScore = getConfidenceScore(frontMeasurement, backMeasurement, manualChecks);
   const rangeLabel = buildRangeLabel(company, lowerGrade, upperGrade, centerTier, manualChecks);
+  const labelRecommendation = buildBgsLabelRecommendation({
+    companyId: company.id,
+    lowerGrade,
+    upperGrade,
+    centerTier,
+    manualChecks,
+  });
 
   return {
     companyId: company.id,
@@ -67,9 +74,11 @@ function predictCompany({ company, frontMeasurement, backMeasurement, manualChec
     reasons: compactReasons([
       ...reasons,
       buildCenterTierReason(company, centerTier),
+      labelRecommendation?.reason,
       confidenceScore < 2 ? "미확인 항목 때문에 후보 범위 확장" : null,
     ]),
     subgrades: buildBgsSubgrades(company.id, centerTier, manualChecks),
+    labelRecommendation,
   };
 }
 
@@ -216,6 +225,46 @@ function buildRangeLabel(company, lowerGrade, upperGrade, centerTier, manualChec
 
 function areConditionChecksClean(manualChecks) {
   return CONDITION_FIELDS.every((field) => manualChecks[field] === "clean");
+}
+
+function buildBgsLabelRecommendation({ companyId, lowerGrade, upperGrade, centerTier, manualChecks }) {
+  if (companyId !== "bgs") {
+    return null;
+  }
+
+  if (
+    centerTier?.label === "10 BL"
+    && lowerGrade >= 10
+    && upperGrade >= 10
+    && areConditionChecksClean(manualChecks)
+  ) {
+    return {
+      tone: "black",
+      title: "Black Label 후보",
+      detail: "4개 서브그레이드가 모두 10이어야 하는 최상위 후보",
+      reason: "BGS 라벨 추천: Black Label은 Centering/Corners/Edges/Surface 전부 10 후보일 때만 표시",
+    };
+  }
+
+  if (upperGrade >= 10 && areConditionChecksClean(manualChecks)) {
+    return {
+      tone: "gold",
+      title: "Gold Label 10 후보",
+      detail: "BGS 10 후보지만 Black Label 확정 조건은 아님",
+      reason: "BGS 라벨 추천: 10 후보지만 4개 서브 전체 10 확정이 아니므로 Gold Label 후보",
+    };
+  }
+
+  if (upperGrade >= 9.5) {
+    return {
+      tone: "gold",
+      title: "Gold Label 9.5 후보",
+      detail: "BGS 9.5 Gem Mint 후보권",
+      reason: "BGS 라벨 추천: 9.5 후보권은 Gold Label 후보로 표시",
+    };
+  }
+
+  return null;
 }
 
 function buildBgsSubgrades(companyId, centerTier, manualChecks) {
